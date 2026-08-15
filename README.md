@@ -66,11 +66,10 @@ healthcheck.sh --watch` runs inside the nginx container. Every 5 s it curls
 `/api/version` over each `ollama-N.sock`. If the healthy set changed, it writes
 `var/run/nginx/upstream.conf` and reloads nginx — a crashed or restarting
 instance is removed from the pool with zero downtime.
+```
 
 ## Repository layout
-
 ```
-.
 ├── docker-compose.yml      # The whole stack
 ├── nginx/
 │   ├── nginx.conf          # :11435 pool + :11436 webui, TLS-only
@@ -85,8 +84,6 @@ instance is removed from the pool with zero downtime.
 │   └── run/nginx           # generated upstream.conf
 ├── docs/diagrams/          # Mermaid sources + rendered SVG/PNG diagrams
 └── opencode.json           # Example: point opencode at the local pool
-
-Note: The above directory structure is created automatically after running `./setup.sh` before starting the stack.
 ```
 
 ## Prerequisites
@@ -113,7 +110,6 @@ curl -k https://localhost/11435/v1/chat/completions -d '{
   "model": "glm-4.7-flash",
   "messages": [{"role": "user", "content": "hello"}]
 }'
-```
 ```
 
 Open the UI at <https://localhost:11436> (first-run: create the admin account).
