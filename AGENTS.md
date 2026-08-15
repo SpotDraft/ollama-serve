@@ -51,14 +51,3 @@ docker run --rm --user 1000:1000 \
 Note: the mermaid-cli image runs as uid 1001 by default; the `--user 1000:1000`
 flag is required so it can write into the bind-mounted `docs/` tree.
 
-## Agent-specific notes
-
-- This repo is **not a git repository** — do not run git commands expecting a
-  working tree.
-- `opencode.json` points opencode at the local Ollama pool
-  (`https://localhost:11435/v1`, model `glm-4.7-flash:latest`). If the stack is
-  down, that provider is unavailable; mention it rather than editing the config
-  to point elsewhere.
-- Bash commands that touch the stack are slow (model loads, GPU work). Prefer
-  read-only inspection (`docker compose config`, `nginx -t`, reading
-  `var/run/nginx/upstream.conf`) before starting/stopping services.

@@ -52,4 +52,9 @@ chown -R 1000:1000 var/
 chown -R 1000:1000 nginx/certs
 echo "Ownership set successfully."
 
+# Restrict private key permissions (owner read/write only)
+echo "Restricting private key permissions..."
+chmod 600 nginx/certs/*.key
+echo "Permissions restricted successfully."
+
 echo "Setup complete! Run 'docker compose up --build -d' to start the stack."
