@@ -36,6 +36,11 @@ x-ollama-base: &ollama-base
     - ./var/lib/ollama-home:/root
   networks:
     - ollama
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "10m"
+      max-file: "100"
 
 x-socat-base: &socat-base
   image: alpine/socat:latest
@@ -52,6 +57,11 @@ x-socat-base: &socat-base
     - ollama
   depends_on:
     - ollama-1
+  logging:
+    driver: "json-file"
+    options:
+      max-size: "5m"
+      max-file: "100"
 
 services:
   ollama-1:
@@ -115,6 +125,11 @@ services:
     # socat-webui, which nginx :11436 (HTTPS) proxies to.
     networks:
       - ollama
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "100"
 
   socat-webui:
     image: alpine/socat:latest
@@ -132,6 +147,11 @@ services:
     depends_on:
       - webui
     command: UNIX-LISTEN:/sockets/webui.sock,unlink-early,fork,reuseaddr,mode=660 TCP:webui:8080
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "5m"
+        max-file: "100"
 
   nginx:
     image: nginx:latest
@@ -158,6 +178,11 @@ services:
       - socat-2
       - socat-3
       - socat-webui
+    logging:
+      driver: "json-file"
+      options:
+        max-size: "10m"
+        max-file: "100"
 
 networks:
   ollama:
