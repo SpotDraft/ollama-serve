@@ -61,7 +61,8 @@ the server certificate's SANs.
 
 ![Health check loop](docs/diagrams/healthcheck.svg)
 
-`healthcheck.sh --watch` runs inside the nginx container. Every 5 s it curls
+```sh
+healthcheck.sh --watch` runs inside the nginx container. Every 5 s it curls
 `/api/version` over each `ollama-N.sock`. If the healthy set changed, it writes
 `var/run/nginx/upstream.conf` and reloads nginx — a crashed or restarting
 instance is removed from the pool with zero downtime.
@@ -84,6 +85,8 @@ instance is removed from the pool with zero downtime.
 │   └── run/nginx           # generated upstream.conf
 ├── docs/diagrams/          # Mermaid sources + rendered SVG/PNG diagrams
 └── opencode.json           # Example: point opencode at the local pool
+
+Note: The above directory structure is created automatically after running `./setup.sh` before starting the stack.
 ```
 
 ## Prerequisites
@@ -111,19 +114,6 @@ curl -k https://localhost/11435/v1/chat/completions -d '{
   "messages": [{"role": "user", "content": "hello"}]
 }'
 ```
-
-# 2. Start the stack (builds the webui image first time)
-docker compose up --build -d
-
-# 3. Pull a model on one instance — it lands in the shared cache
-docker compose exec ollama-1 ollama pull glm-4.7-flash
-
-# 4. Use it
-curl -k https://localhost:11435/api/tags            # trust the CA to drop -k
-curl -k https://localhost:11435/v1/chat/completions -d '{
-  "model": "glm-4.7-flash",
-  "messages": [{"role": "user", "content": "hello"}]
-}'
 ```
 
 Open the UI at <https://localhost:11436> (first-run: create the admin account).
