@@ -1,0 +1,32 @@
+{
+  "$schema": "https://opencode.ai/config.json",
+  "model": "ollama/glm-4.7-flash:latest",
+  "small_model": "ollama/glm-4.7-flash:latest",
+  "provider": {
+    "ollama": {
+      "options": {
+        "baseURL": "https://localhost:11435/v1"
+      },
+      "models": {
+        "glm-4.7-flash:latest": {
+          "name": "GLM-4.7 Flash (glm4moelite 29.9B, tools)",
+          "tool_call": true,
+          "reasoning": true,
+          "limit": {
+            "context": 202752,
+            "output": 8192
+          }
+        },
+        "qwen3-coder:latest": {
+          "name": "Qwen3 Coder (code generation)",
+          "tool_call": false,
+          "reasoning": false,
+          "limit": {
+            "context": 32768,
+            "output": 8192
+          }
+        }
+      }
+    }
+  }
+}

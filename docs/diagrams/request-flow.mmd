@@ -1,0 +1,19 @@
+sequenceDiagram
+    autonumber
+    participant C as Client (curl / opencode)
+    participant N as nginx :11435 (TLS)
+    participant UP as ollama_pool (ip_hash)
+    participant SC as socat unix socket
+    participant O as ollama instance
+    participant M as shared model cache<br/>(var/lib/ollama)
+
+    C->>N: POST /api/chat (TLS 1.3, local CA)
+    N->>UP: proxy_pass
+    UP->>SC: pick healthy socket for client IP
+    SC->>O: TCP :11434
+    O->>M: load model blobs
+    O-->>O: inference on NVIDIA GB10
+    O-->>SC: SSE stream
+    SC-->>UP: stream
+    UP-->>N: stream
+    N-->>C: SSE stream (proxy_buffering off)

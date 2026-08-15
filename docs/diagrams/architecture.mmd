@@ -1,0 +1,51 @@
+flowchart TD
+    CLI1["curl / opencode<br/>https://localhost:11435/v1"]
+    CLI2["Browser<br/>https://localhost:11436"]
+
+    subgraph HOST["DGX Spark host (Ubuntu)"]
+        subgraph NGX["nginx container - network_mode: host"]
+            LS11435["<b>:11435</b> HTTPS - Ollama API"]
+            LS11436["<b>:11436</b> HTTPS - Open WebUI"]
+            UP["upstream ollama_pool (ip_hash)"]
+            HK["healthcheck.sh<br/>probe every 5s + reload"]
+            CERTS["TLS certs<br/>nginx/certs/"]
+        end
+
+        subgraph NET["bridge network ollama - 172.30.0.0/24"]
+            subgraph POOL["Ollama pool - 3 instances, shared model store"]
+                O1["ollama-1<br/>:11434"]
+                O2["ollama-2<br/>:11434"]
+                O3["ollama-3<br/>:11434"]
+            end
+            subgraph SOC["socat bridges -> unix sockets"]
+                S1["socat-1<br/>ollama-1.sock"]
+                S2["socat-2<br/>ollama-2.sock"]
+                S3["socat-3<br/>ollama-3.sock"]
+            end
+            W["webui<br/>:8080"]
+            SW["socat-webui<br/>webui.sock"]
+        end
+
+        GPU["NVIDIA GB10 GPU<br/>(CDI: nvidia.com/gpu=all)"]
+        MODELS["var/lib/ollama<br/>shared model cache"]
+        DATA["var/lib/webui<br/>SQLite + uploads"]
+    end
+
+    CLI1 -->|TLS| LS11435
+    CLI2 -->|TLS| LS11436
+    LS11435 --> UP
+    UP -.->|ollama-1.sock| S1
+    UP -.->|ollama-2.sock| S2
+    UP -.->|ollama-3.sock| S3
+    LS11436 -.->|webui.sock| SW
+    S1 -->|TCP :11434| O1
+    S2 -->|TCP :11434| O2
+    S3 -->|TCP :11434| O3
+    SW -->|TCP :8080| W
+    W -.->|https://172.30.0.1:11435| LS11435
+    HK -.->|curl --unix-socket /api/version| S1
+    HK -.->|curl --unix-socket /api/version| S2
+    HK -.->|curl --unix-socket /api/version| S3
+    O1 & O2 & O3 --> GPU
+    O1 & O2 & O3 --> MODELS
+    W --> DATA

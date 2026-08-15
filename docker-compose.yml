@@ -1,0 +1,169 @@
+name: ollama-serve
+
+x-ollama-base: &ollama-base
+  image: ollama/ollama:latest
+  restart: unless-stopped
+  # Run as the host user so files created are not root-owned.
+  user: "1000:1000"
+  # Harden: no new privileges, drop all capabilities.
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  # GPU access via the NVIDIA CDI device (DGX Spark: single GB10).
+  deploy:
+    resources:
+      reservations:
+        devices:
+          - driver: cdi
+            device_ids:
+              - nvidia.com/gpu=all
+            capabilities:
+              - gpu
+  # Keep models loaded forever so each instance loads once (no churn).
+  # HOME must be /root or ollama writes to the image's /home/ubuntu
+  # container filesystem instead of the shared models mount.
+  environment:
+    OLLAMA_KEEP_ALIVE: "-1"
+    # Large models need a higher context than the 4096 default.
+    OLLAMA_CONTEXT_LENGTH: "64000"
+    HOME: /root
+  # All instances share the same model cache on disk.
+  # The image's /root is mode 700 root, so a separate writable dir is
+  # mounted over /root to make it traversable for the non-root user.
+  volumes:
+    - ./var/lib/ollama:/root/.ollama
+    - ./var/lib/ollama-home:/root
+  networks:
+    - ollama
+
+x-socat-base: &socat-base
+  image: alpine/socat:latest
+  restart: unless-stopped
+  user: "1000:1000"
+  # Harden: no new privileges, drop all capabilities.
+  security_opt:
+    - no-new-privileges:true
+  cap_drop:
+    - ALL
+  volumes:
+    - ./var/run/sockets:/sockets
+  networks:
+    - ollama
+  depends_on:
+    - ollama-1
+
+services:
+  ollama-1:
+    <<: *ollama-base
+
+  socat-1:
+    <<: *socat-base
+    command: UNIX-LISTEN:/sockets/ollama-1.sock,unlink-early,fork,reuseaddr,mode=660 TCP:ollama-1:11434
+    depends_on:
+      - ollama-1
+
+  ollama-2:
+    <<: *ollama-base
+
+  socat-2:
+    <<: *socat-base
+    command: UNIX-LISTEN:/sockets/ollama-2.sock,unlink-early,fork,reuseaddr,mode=660 TCP:ollama-2:11434
+    depends_on:
+      - ollama-2
+
+  ollama-3:
+    <<: *ollama-base
+
+  socat-3:
+    <<: *socat-base
+    command: UNIX-LISTEN:/sockets/ollama-3.sock,unlink-early,fork,reuseaddr,mode=660 TCP:ollama-3:11434
+    depends_on:
+      - ollama-3
+
+  webui:
+    build:
+      context: .
+      dockerfile: webui/Dockerfile
+    image: ollama-serve-webui
+    restart: unless-stopped
+    # Run as the host user so the SQLite DB and uploads are not root-owned.
+    user: "1000:1000"
+    # Harden: no new privileges, drop all capabilities.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    # Point at the nginx pool over TLS. 172.30.0.1 is the pinned bridge
+    # gateway -> the host, where nginx (host network) listens on 11435.
+    environment:
+      OLLAMA_BASE_URL: https://172.30.0.1:11435
+      # Public URL of this webui as seen by browsers (via nginx :11436).
+      WEBUI_URL: https://localhost:11436
+      # start.sh writes the secret key to the workdir (/app/backend, root-owned
+      # in the image); redirect it into our writable data mount.
+      WEBUI_SECRET_KEY_FILE: /app/backend/data/.webui_secret_key
+      # Use the system bundle (our CA baked in at build time) so httpx/
+      # requests verify the pool cert without breaking other TLS.
+      SSL_CERT_FILE: /etc/ssl/certs/ca-certificates.crt
+      REQUESTS_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt
+      CURL_CA_BUNDLE: /etc/ssl/certs/ca-certificates.crt
+    # SQLite DB + uploads live in this host dir.
+    volumes:
+      - ./var/lib/webui:/app/backend/data
+    # No TCP ports published: the only path in is the unix socket bridged by
+    # socat-webui, which nginx :11436 (HTTPS) proxies to.
+    networks:
+      - ollama
+
+  socat-webui:
+    image: alpine/socat:latest
+    restart: unless-stopped
+    user: "1000:1000"
+    # Harden: no new privileges, drop all capabilities.
+    security_opt:
+      - no-new-privileges:true
+    cap_drop:
+      - ALL
+    volumes:
+      - ./var/run/sockets:/sockets
+    networks:
+      - ollama
+    depends_on:
+      - webui
+    command: UNIX-LISTEN:/sockets/webui.sock,unlink-early,fork,reuseaddr,mode=660 TCP:webui:8080
+
+  nginx:
+    image: nginx:latest
+    restart: unless-stopped
+    # Run as non-root.
+    user: "1000:1000"
+    # Write the initial upstream config, then keep nginx as PID 1 while the
+    # health-check watcher regenerates the upstream and reloads on changes.
+    command: >-
+      sh -c "/healthcheck.sh --init &&
+             (/healthcheck.sh --watch &) &&
+             exec /docker-entrypoint.sh nginx -g 'daemon off;'"
+    # Host networking so nginx sees real client IPs (ip_hash stickiness
+    # otherwise collapses to the docker bridge gateway IP).
+    network_mode: host
+    volumes:
+      - ./nginx/nginx.conf:/etc/nginx/nginx.conf:ro
+      - ./nginx/healthcheck.sh:/healthcheck.sh:ro
+      - ./nginx/certs:/etc/nginx/certs:ro
+      - ./var/run/sockets:/sockets:ro
+      - ./var/run/nginx:/etc/nginx/runtime
+    depends_on:
+      - socat-1
+      - socat-2
+      - socat-3
+      - socat-webui
+
+networks:
+  ollama:
+    # Pin a subnet so the bridge gateway (172.30.0.1) is deterministic.
+    # The webui uses this IP to reach nginx (host network) over TLS, and
+    # the server cert has it in its SANs.
+    ipam:
+      config:
+        - subnet: 172.30.0.0/24

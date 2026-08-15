@@ -1,0 +1,55 @@
+#!/bin/sh
+set -eu
+
+# Create var/ directory structure
+echo "Creating var/ directory structure..."
+mkdir -p var/lib/ollama
+mkdir -p var/lib/webui
+mkdir -p var/run/sockets
+mkdir -p var/run/nginx
+echo "Directories created successfully."
+
+# Create nginx/certs directory for certificates
+echo "Creating nginx/certs directory..."
+mkdir -p nginx/certs
+
+# Generate local CA and server certificate only if they don't already exist
+echo "Generating certificates..."
+if [ ! -f nginx/certs/ca.key ] || [ ! -f nginx/certs/ca.crt ] || \
+   [ ! -f nginx/certs/server.key ] || [ ! -f nginx/certs/server.crt ]; then
+    echo "Generating CA certificate..."
+    openssl req -x509 -newkey rsa:4096 -nodes -keyout nginx/certs/ca.key \
+      -out nginx/certs/ca.crt -days 3650 -subj "/CN=ollama-serve CA" 2>/dev/null
+
+    echo "Generating server key and CSR..."
+    openssl req -newkey rsa:4096 -nodes -keyout nginx/certs/server.key \
+      -out nginx/certs/server.csr -subj "/CN=localhost" 2>/dev/null
+
+    echo "Generating and signing server certificate..."
+    openssl x509 -req -in nginx/certs/server.csr \
+      -CA nginx/certs/ca.crt -CAkey nginx/certs/ca.key \
+      -CAcreateserial -out nginx/certs/server.crt -days 3650 \
+      -extfile /dev/stdin <<EOF
+[ req ]
+distinguished_name = dn
+
+[ dn ]
+CN = localhost
+
+[ alt_names ]
+DNS.1 = localhost
+IP.1 = 127.0.0.1
+IP.2 = 172.30.0.1
+EOF
+    echo "Certificates generated successfully."
+else
+    echo "Certificates already exist, skipping generation."
+fi
+
+# Set proper ownership (1000:1000)
+echo "Setting proper ownership..."
+chown -R 1000:1000 var/
+chown -R 1000:1000 nginx/certs
+echo "Ownership set successfully."
+
+echo "Setup complete! Run 'docker compose up --build -d' to start the stack."

@@ -1,0 +1,18 @@
+sequenceDiagram
+    autonumber
+    participant B as Browser
+    participant N2 as nginx :11436 (TLS)
+    participant WS as webui.sock
+    participant W as Open WebUI :8080
+    participant N1 as nginx :11435 (TLS)
+    participant UP as ollama_pool
+    participant O as ollama instance
+
+    B->>N2: https://localhost:11436 (UI + SSE)
+    N2->>WS: proxy to unix socket
+    WS->>W: TCP :8080
+    W->>N1: OLLAMA_BASE_URL https://172.30.0.1:11435
+    N1->>UP: proxy_pass
+    UP->>O: unix socket via socat
+    O-->>W: SSE / JSON
+    W-->>B: stream (buffering off)
