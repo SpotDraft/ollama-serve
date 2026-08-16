@@ -22,7 +22,7 @@ x-ollama-base: &ollama-base
               - gpu
   # Large models need a higher context than the 4096 default.
   environment:
-    OLLAMA_CONTEXT_LENGTH: "32768"
+    OLLAMA_CONTEXT_LENGTH: "16384"
     OLLAMA_NUM_PARALLEL: "2"
     HOME: /root
   # All instances share the same model cache on disk.
