@@ -2,8 +2,7 @@
 
 A self-hosted, TLS-only Ollama serving stack for a single GPU host (NVIDIA DGX
 Spark / GB10). It runs two Ollama instances behind an nginx reverse proxy with
-dynamic, health-checked upstreams and session stickiness, plus Open WebUI for a
-browser interface. Every path into the stack is HTTPS; nothing is published as
+dynamic, health-checked upstreams, plus Open WebUI for a browser interface. Every path into the stack is HTTPS; nothing is published as
 plain HTTP.
 
 ## Highlights
@@ -17,7 +16,8 @@ plain HTTP.
 - **Dynamic upstream pool** — `healthcheck.sh` probes each instance's socket
   every 5 s and regenerates the nginx upstream, reloading only on change. Failed
   instances are dropped from the pool automatically.
-- **Session stickiness** (`ip_hash`) so long conversations stay on one instance.
+- **Round-robin load balancing** — nginx spreads requests across the healthy
+  instances automatically.
 - **HTTPS-only entry points** on `:11435` (Ollama API) and `:11436` (Open WebUI),
   served by a self-signed local CA.
 - **Hardened containers** — non-root user (`1000:1000`), `no-new-privileges`,
@@ -44,8 +44,8 @@ plain HTTP.
 ![Ollama API request flow](docs/diagrams/request-flow.svg)
 
 A client calls `https://localhost:11435/v1`. nginx terminates TLS, selects a
-healthy socket for the client IP via `ip_hash`, and streams the response back
-with `proxy_buffering off` so SSE works end to end.
+healthy socket via round-robin, and streams the response back with
+`proxy_buffering off` so SSE works end to end.
 
 ### Request flow (Open WebUI)
 
@@ -121,7 +121,7 @@ Open the UI at <https://localhost:11436> (first-run: create the admin account).
 | `OLLAMA_CONTEXT_LENGTH=32768`        | compose `x-ollama-base`   | Context window for large models          |
 | `OLLAMA_NUM_PARALLEL=2`             | compose `x-ollama-base`   | Two parallel requests per model (2x context size per request) |
 | Number of instances (`1..2`)         | compose `services`        | Scale the pool (and `INSTANCES` in `healthcheck.sh`) |
-| `ip_hash` / `keepalive 32`           | generated `upstream.conf` | Stickiness + connection reuse            |
+| `keepalive 32`                       | generated `upstream.conf` | Connection reuse                          |
 | `OLLAMA_BASE_URL` / `WEBUI_URL`      | compose `webui`           | WebUI backend URL + public UI URL        |
 | Probe interval (`INTERVAL=5`)        | `nginx/healthcheck.sh`    | Health-check cadence                     |
 

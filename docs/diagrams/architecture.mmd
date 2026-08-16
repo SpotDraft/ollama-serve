@@ -6,7 +6,7 @@ flowchart TD
         subgraph NGX["nginx container - network_mode: host"]
             LS11435["<b>:11435</b> HTTPS - Ollama API"]
             LS11436["<b>:11436</b> HTTPS - Open WebUI"]
-            UP["upstream ollama_pool (ip_hash)"]
+            UP["upstream ollama_pool (round-robin)"]
             HK["healthcheck.sh<br/>probe every 5s + reload"]
             CERTS["TLS certs<br/>nginx/certs/"]
         end
