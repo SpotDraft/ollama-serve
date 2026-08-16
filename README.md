@@ -1,14 +1,14 @@
 # ollama-serve
 
 A self-hosted, TLS-only Ollama serving stack for a single GPU host (NVIDIA DGX
-Spark / GB10). It runs three Ollama instances behind an nginx reverse proxy with
+Spark / GB10). It runs two Ollama instances behind an nginx reverse proxy with
 dynamic, health-checked upstreams and session stickiness, plus Open WebUI for a
 browser interface. Every path into the stack is HTTPS; nothing is published as
 plain HTTP.
 
 ## Highlights
 
-- **3 GPU Ollama instances** on the same host, each with full GPU access via
+- **2 GPU Ollama instances** on the same host, each with full GPU access via
   NVIDIA CDI (`nvidia.com/gpu=all`).
 - **Shared model cache** — all instances mount the same `var/lib/ollama` host
   directory, so each model is downloaded exactly once.
@@ -34,8 +34,8 @@ plain HTTP.
 | Service       | Container port | Host exposure                                  | Purpose                          |
 | ------------- | -------------- | ---------------------------------------------- | -------------------------------- |
 | `nginx`       | —              | `:11435` (HTTPS), `:11436` (HTTPS)             | TLS front door for the whole stack |
-| `ollama-1..3` | `:11434`       | none (reached via unix sockets)                | GPU inference instances          |
-| `socat-1..3`  | —              | `var/run/sockets/ollama-N.sock` (unix)         | Bridge TCP `:11434` to sockets   |
+| `ollama-1..2` | `:11434`       | none (reached via unix sockets)                | GPU inference instances          |
+| `socat-1..2`  | —              | `var/run/sockets/ollama-N.sock` (unix)         | Bridge TCP `:11434` to sockets   |
 | `webui`       | `:8080`        | none (reached via unix socket)                 | Open WebUI                       |
 | `socat-webui` | —              | `var/run/sockets/webui.sock` (unix)            | Bridge TCP `:8080` to a socket   |
 
@@ -118,9 +118,9 @@ Open the UI at <https://localhost:11436> (first-run: create the admin account).
 
 | Setting                              | Where                     | Effect                                   |
 | ------------------------------------ | ------------------------- | ---------------------------------------- |
-| `OLLAMA_KEEP_ALIVE=-1`               | compose `x-ollama-base`   | Keep models loaded forever               |
-| `OLLAMA_CONTEXT_LENGTH=64000`        | compose `x-ollama-base`   | Context window for large models          |
-| Number of instances (`1..3`)         | compose `services`        | Scale the pool (and `INSTANCES` in `healthcheck.sh`) |
+| `OLLAMA_CONTEXT_LENGTH=32768`        | compose `x-ollama-base`   | Context window for large models          |
+| `OLLAMA_NUM_PARALLEL=2`             | compose `x-ollama-base`   | Two parallel requests per model (2x context size per request) |
+| Number of instances (`1..2`)         | compose `services`        | Scale the pool (and `INSTANCES` in `healthcheck.sh`) |
 | `ip_hash` / `keepalive 32`           | generated `upstream.conf` | Stickiness + connection reuse            |
 | `OLLAMA_BASE_URL` / `WEBUI_URL`      | compose `webui`           | WebUI backend URL + public UI URL        |
 | Probe interval (`INTERVAL=5`)        | `nginx/healthcheck.sh`    | Health-check cadence                     |

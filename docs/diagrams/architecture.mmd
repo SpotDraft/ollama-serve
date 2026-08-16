@@ -12,10 +12,9 @@ flowchart TD
         end
 
         subgraph NET["bridge network ollama - 172.30.0.0/24"]
-            subgraph POOL["Ollama pool - 3 instances, shared model store"]
+            subgraph POOL["Ollama pool - 2 instances, shared model store"]
                 O1["ollama-1<br/>:11434"]
                 O2["ollama-2<br/>:11434"]
-                O3["ollama-3<br/>:11434"]
             end
             subgraph SOC["socat bridges -> unix sockets"]
                 S1["socat-1<br/>ollama-1.sock"]
@@ -36,16 +35,13 @@ flowchart TD
     LS11435 --> UP
     UP -.->|ollama-1.sock| S1
     UP -.->|ollama-2.sock| S2
-    UP -.->|ollama-3.sock| S3
     LS11436 -.->|webui.sock| SW
     S1 -->|TCP :11434| O1
     S2 -->|TCP :11434| O2
-    S3 -->|TCP :11434| O3
     SW -->|TCP :8080| W
     W -.->|https://172.30.0.1:11435| LS11435
     HK -.->|curl --unix-socket /api/version| S1
     HK -.->|curl --unix-socket /api/version| S2
-    HK -.->|curl --unix-socket /api/version| S3
-    O1 & O2 & O3 --> GPU
-    O1 & O2 & O3 --> MODELS
+    O1 & O2 --> GPU
+    O1 & O2 --> MODELS
     W --> DATA

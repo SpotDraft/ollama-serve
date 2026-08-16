@@ -20,13 +20,10 @@ x-ollama-base: &ollama-base
               - nvidia.com/gpu=all
             capabilities:
               - gpu
-  # Keep models loaded forever so each instance loads once (no churn).
-  # HOME must be /root or ollama writes to the image's /home/ubuntu
-  # container filesystem instead of the shared models mount.
+  # Large models need a higher context than the 4096 default.
   environment:
-    OLLAMA_KEEP_ALIVE: "-1"
-    # Large models need a higher context than the 4096 default.
-    OLLAMA_CONTEXT_LENGTH: "64000"
+    OLLAMA_CONTEXT_LENGTH: "32768"
+    OLLAMA_NUM_PARALLEL: "2"
     HOME: /root
   # All instances share the same model cache on disk.
   # The image's /root is mode 700 root, so a separate writable dir is
@@ -81,15 +78,6 @@ services:
     command: UNIX-LISTEN:/sockets/ollama-2.sock,unlink-early,fork,reuseaddr,mode=660 TCP:ollama-2:11434
     depends_on:
       - ollama-2
-
-  ollama-3:
-    <<: *ollama-base
-
-  socat-3:
-    <<: *socat-base
-    command: UNIX-LISTEN:/sockets/ollama-3.sock,unlink-early,fork,reuseaddr,mode=660 TCP:ollama-3:11434
-    depends_on:
-      - ollama-3
 
   webui:
     build:
@@ -176,7 +164,6 @@ services:
     depends_on:
       - socat-1
       - socat-2
-      - socat-3
       - socat-webui
     logging:
       driver: "json-file"

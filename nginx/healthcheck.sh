@@ -3,7 +3,7 @@ SOCKET_DIR=/sockets
 CONF=/etc/nginx/runtime/upstream.conf
 CONF_TMP=/etc/nginx/runtime/upstream.conf.tmp
 INTERVAL=5
-INSTANCES="1 2 3"
+INSTANCES="1 2"
 
 probe() {
   sock="$1"
