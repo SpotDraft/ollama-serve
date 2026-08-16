@@ -29,17 +29,9 @@ if [ ! -f nginx/certs/ca.key ] || [ ! -f nginx/certs/ca.crt ] || \
     openssl x509 -req -in nginx/certs/server.csr \
       -CA nginx/certs/ca.crt -CAkey nginx/certs/ca.key \
       -CAcreateserial -out nginx/certs/server.crt -days 3650 \
-      -extfile /dev/stdin <<EOF
-[ req ]
-distinguished_name = dn
-
-[ dn ]
-CN = localhost
-
-[ alt_names ]
-DNS.1 = localhost
-IP.1 = 127.0.0.1
-IP.2 = 172.30.0.1
+      -extensions v3_req -extfile /dev/stdin <<EOF
+[ v3_req ]
+subjectAltName = DNS:localhost, IP:127.0.0.1, IP:172.30.0.1
 EOF
     echo "Certificates generated successfully."
 else
