@@ -1,0 +1,53 @@
+# OpenTelemetry Collector — local sink (default).
+#
+# Everything stays on this host:
+#   debug      -> span/metric counts in `docker compose logs collector`
+#                 (set COLLECTOR_DEBUG_VERBOSITY=detailed in .env for payloads)
+#   prometheus -> scrape endpoint at collector:8889/metrics on the obi network
+#
+# To ship the same data to an external backend instead, point
+# COLLECTOR_CONFIG_FILE at forward.yaml in .env.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: 0.0.0.0:4317
+      http:
+        endpoint: 0.0.0.0:4318
+
+processors:
+  # Shed telemetry rather than compete with the GPU workload for memory.
+  # Absolute limits, not percentages: on a large-memory host a percentage
+  # limit is so high it would never engage.
+  memory_limiter:
+    check_interval: 5s
+    limit_mib: 512
+    spike_limit_mib: 128
+  batch:
+    timeout: 5s
+    send_batch_size: 1024
+
+exporters:
+  debug:
+    verbosity: ${env:COLLECTOR_DEBUG_VERBOSITY}
+  prometheus:
+    endpoint: 0.0.0.0:8889
+    # Surface service.name / service.instance.id as labels so the two ollama
+    # instances are distinguishable in the scrape output.
+    resource_to_telemetry_conversion:
+      enabled: true
+
+service:
+  telemetry:
+    logs:
+      level: ${env:COLLECTOR_LOG_LEVEL}
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [debug]
+    metrics:
+      receivers: [otlp]
+      processors: [memory_limiter, batch]
+      exporters: [debug, prometheus]
