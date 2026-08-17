@@ -43,7 +43,7 @@ plain HTTP.
 | `webui`       | `:8080`        | none (reached via unix socket)                 | Open WebUI                       |
 | `socat-webui` | —              | `var/run/sockets/webui.sock` (unix)            | Bridge TCP `:8080` to a socket   |
 | `obi`         | —              | none                                           | eBPF instrumentation (optional)  |
-| `otelcol`     | `:4317/:4318`  | none (reached on the `otel` network)            | OTLP collector (optional)        |
+| `collector`     | `:4317/:4318`  | none (reached on the `otel` network)            | OTLP collector (optional)        |
 
 ### Request flow (Ollama API)
 
@@ -81,7 +81,7 @@ instance is removed from the pool with zero downtime.
 ├── .env.example            # Copy to .env; where every optional knob lives
 ├── otel/                   # Telemetry plane, one dir per component
 │   ├── obi/config.yaml     # What OBI instruments, and how routes are named
-│   └── otelcol/            # Collector pipelines: local.yaml, forward.yaml
+│   └── collector/          # Collector pipelines: local.yaml, forward.yaml
 ├── nginx/
 │   ├── nginx.conf          # :11435 pool + :11436 webui, TLS-only
 │   ├── healthcheck.sh      # Dynamic upstream watcher
@@ -135,7 +135,7 @@ Open the UI at <https://localhost:11436> (first-run: create the admin account).
 | `keepalive 32`                       | generated `upstream.conf` | Connection reuse                          |
 | `OLLAMA_BASE_URL` / `WEBUI_URL`      | compose `webui`           | WebUI backend URL + public UI URL        |
 | Probe interval (`INTERVAL=5`)        | `nginx/healthcheck.sh`    | Health-check cadence                     |
-| Everything under `OBI_*` / `OTELCOL_*` | `.env`                  | eBPF telemetry, see below                |
+| Everything under `OBI_*` / `COLLECTOR_*` | `.env`                  | eBPF telemetry, see below                |
 
 ## eBPF telemetry (optional)
 
@@ -167,7 +167,7 @@ Uncomment this one line in `.env`:
 COMPOSE_FILE=docker-compose.yml:docker-compose.otel.yml
 ```
 
-Then bring the stack up as usual — `obi` and `otelcol` join it:
+Then bring the stack up as usual — `obi` and `collector` join it:
 
 ```sh
 docker compose up -d
@@ -216,13 +216,13 @@ to OBI's heuristic matcher so metric cardinality stays bounded.
 ### Where the data goes
 
 OBI exports OTLP to the bundled collector on a dedicated `otel` bridge network.
-Nothing is published on the host. `OTELCOL_CONFIG_FILE` in `.env` picks the
+Nothing is published on the host. `COLLECTOR_CONFIG_FILE` in `.env` picks the
 pipeline:
 
 | Config                       | Behaviour                                                      |
 | ---------------------------- | -------------------------------------------------------------- |
-| `otel/otelcol/local.yaml` (default) | Stays on the box: span/metric counts in `docker compose logs otelcol`, plus a Prometheus scrape endpoint at `otelcol:8889/metrics` on the `otel` network |
-| `otel/otelcol/forward.yaml`   | Relays traces and metrics to the OTLP/HTTP backend in `OTLP_FORWARD_ENDPOINT` |
+| `otel/collector/local.yaml` (default) | Stays on the box: span/metric counts in `docker compose logs collector`, plus a Prometheus scrape endpoint at `collector:8889/metrics` on the `otel` network |
+| `otel/collector/forward.yaml`   | Relays traces and metrics to the OTLP/HTTP backend in `OTLP_FORWARD_ENDPOINT` |
 
 To skip the collector entirely, point `OBI_OTLP_ENDPOINT` straight at your own
 OTLP endpoint.
@@ -249,7 +249,7 @@ the collector image has no shell, so do it from a throwaway container on the
 pulled:
 
 ```sh
-docker run --rm --network ollama-serve_otel --entrypoint wget alpine/socat -qO- http://otelcol:8889/metrics
+docker run --rm --network ollama-serve_otel --entrypoint wget alpine/socat -qO- http://collector:8889/metrics
 ```
 
 ### Cost
@@ -286,7 +286,7 @@ observability can never starve the GPU workload.
 - **Model download "just sits"** — large blobs stream in; watch
   `docker compose logs -f ollama-1` rather than the partial files in
   `var/lib/ollama/models/blobs`.
-- **`obi` / `otelcol` don't start** — `COMPOSE_FILE` in `.env` is still
+- **`obi` / `collector` don't start** — `COMPOSE_FILE` in `.env` is still
   commented out, or you ran `docker compose` from another directory (the value
   is resolved relative to the working directory). Confirm with
   `docker compose config --services | grep obi`.
@@ -316,7 +316,7 @@ observability can never starve the GPU workload.
   outside this stack. The discovery selectors in `otel/obi/config.yaml` scope
   *what OBI instruments*, but they do not reduce what it *could* reach. Enable
   the overlay only if you accept that trade-off; the base stack is unaffected
-  when you don't. `otelcol` stays hardened like everything else.
+  when you don't. `collector` stays hardened like everything else.
 - Traces carry request metadata (routes, status codes, timings, and with
   `genai` enabled, LLM call attributes). Treat the collector's output as
   sensitive, and review `OTLP_FORWARD_ENDPOINT` before shipping it off-host.

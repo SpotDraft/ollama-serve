@@ -40,9 +40,9 @@ The overlay's two config files have their own validators, and both catch real
 errors that Compose does not:
 
 ```sh
-docker run --rm -e OTELCOL_LOG_LEVEL=info -e OTELCOL_DEBUG_VERBOSITY=basic \
-  -v "$(pwd)/otel/otelcol:/etc/otelcol:ro" \
-  otel/opentelemetry-collector-contrib:0.158.0 validate --config=/etc/otelcol/local.yaml
+docker run --rm -e COLLECTOR_LOG_LEVEL=info -e COLLECTOR_DEBUG_VERBOSITY=basic \
+  -v "$(pwd)/otel/collector:/etc/collector:ro" \
+  otel/opentelemetry-collector-contrib:0.158.0 validate --config=/etc/collector/local.yaml
 
 docker run --rm --pid=host --privileged \
   -v "$(pwd)/otel/obi/config.yaml:/etc/obi/config.yaml:ro" \

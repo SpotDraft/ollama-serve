@@ -4,7 +4,7 @@
 # (Tempo, Alloy, Grafana Cloud, Honeycomb, another collector, ...).
 #
 # Enable by setting both of these in .env:
-#   OTELCOL_CONFIG_FILE=/etc/otelcol/forward.yaml
+#   COLLECTOR_CONFIG_FILE=/etc/collector/forward.yaml
 #   OTLP_FORWARD_ENDPOINT=https://otlp.example.internal:4318
 
 receivers:
@@ -27,7 +27,7 @@ processors:
 
 exporters:
   debug:
-    verbosity: ${env:OTELCOL_DEBUG_VERBOSITY}
+    verbosity: ${env:COLLECTOR_DEBUG_VERBOSITY}
   otlphttp:
     endpoint: ${env:OTLP_FORWARD_ENDPOINT}
     compression: gzip
@@ -52,7 +52,7 @@ exporters:
 service:
   telemetry:
     logs:
-      level: ${env:OTELCOL_LOG_LEVEL}
+      level: ${env:COLLECTOR_LOG_LEVEL}
   pipelines:
     traces:
       receivers: [otlp]

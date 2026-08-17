@@ -13,7 +13,7 @@ flowchart TD
         subgraph OVERLAY["docker-compose.otel.yml - optional, purely additive"]
             subgraph OBINET["bridge network otel - nothing published on the host"]
                 OBI["obi<br/>privileged + pid: host<br/>otel/obi/config.yaml"]
-                OC["otelcol<br/>OTLP :4317 / :4318"]
+                OC["collector<br/>OTLP :4317 / :4318"]
             end
         end
     end
@@ -23,6 +23,6 @@ flowchart TD
 
     NGX & O1 & O2 & W ==> KERNEL
     KERNEL ==>|"discovery: open_ports + containers_only"| OBI
-    OBI ==>|"OTLP/HTTP<br/>to otelcol:4318"| OC
+    OBI ==>|"OTLP/HTTP<br/>to collector:4318"| OC
     OC --> LOCAL
     OC -.->|"OTLP_FORWARD_ENDPOINT"| FWD

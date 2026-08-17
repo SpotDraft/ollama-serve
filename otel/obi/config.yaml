@@ -11,9 +11,9 @@
 # it keeps the config valid on its own and makes the destination readable here.
 # OTEL_EXPORTER_OTLP_ENDPOINT from .env overrides both at runtime.
 otel_traces_export:
-  endpoint: http://otelcol:4318
+  endpoint: http://collector:4318
 otel_metrics_export:
-  endpoint: http://otelcol:4318
+  endpoint: http://collector:4318
 
 # OBI runs with `pid: host`, so it can see every process on the box. These
 # selectors are the only thing keeping it scoped to this stack: each one

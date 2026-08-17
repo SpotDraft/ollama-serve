@@ -1,8 +1,8 @@
 # Optional OpenTelemetry plane for ollama-serve.
 #
 # Two components, each namespaced under otel/:
-#   otel/obi/      OBI — the eBPF provider that produces the telemetry
-#   otel/otelcol/  the collector that receives it and decides where it goes
+#   otel/obi/        OBI — the eBPF provider that produces the telemetry
+#   otel/collector/  the collector that receives it and routes it onward
 #
 # This file is purely additive: it adds two services and one network, and
 # changes nothing in docker-compose.yml. The base stack runs identically with
@@ -24,8 +24,8 @@ x-otel-logging: &otel-logging
 
 services:
   # Receives OTLP from OBI and fans it out. Which pipeline runs is chosen by
-  # OTELCOL_CONFIG_FILE (see otel/otelcol/local.yaml and forward.yaml).
-  otelcol:
+  # COLLECTOR_CONFIG_FILE (see otel/collector/local.yaml and forward.yaml).
+  collector:
     image: otel/opentelemetry-collector-contrib:0.158.0
     restart: unless-stopped
     # Same posture as the rest of the stack: non-root, no capabilities.
@@ -34,17 +34,17 @@ services:
       - no-new-privileges:true
     cap_drop:
       - ALL
-    command: ["--config=${OTELCOL_CONFIG_FILE:-/etc/otelcol/local.yaml}"]
+    command: ["--config=${COLLECTOR_CONFIG_FILE:-/etc/collector/local.yaml}"]
     environment:
       # Referenced as ${env:...} by the collector configs, so they must always
       # be set, even when unused by the selected config.
-      OTELCOL_LOG_LEVEL: ${OTELCOL_LOG_LEVEL:-info}
-      OTELCOL_DEBUG_VERBOSITY: ${OTELCOL_DEBUG_VERBOSITY:-basic}
+      COLLECTOR_LOG_LEVEL: ${COLLECTOR_LOG_LEVEL:-info}
+      COLLECTOR_DEBUG_VERBOSITY: ${COLLECTOR_DEBUG_VERBOSITY:-basic}
       OTLP_FORWARD_ENDPOINT: ${OTLP_FORWARD_ENDPOINT:-}
       OTLP_FORWARD_AUTHORIZATION: ${OTLP_FORWARD_AUTHORIZATION:-}
       OTLP_FORWARD_INSECURE_SKIP_VERIFY: ${OTLP_FORWARD_INSECURE_SKIP_VERIFY:-false}
     volumes:
-      - ./otel/otelcol:/etc/otelcol:ro
+      - ./otel/collector:/etc/collector:ro
     # No published ports: OBI reaches the collector by service name on the
     # otel network, matching the base stack's "nothing on the host" rule.
     networks:
@@ -74,7 +74,7 @@ services:
     environment:
       # Where to send data. Defaults to the collector above; point it straight
       # at your own OTLP endpoint to skip the collector entirely.
-      OTEL_EXPORTER_OTLP_ENDPOINT: ${OBI_OTLP_ENDPOINT:-http://otelcol:4318}
+      OTEL_EXPORTER_OTLP_ENDPOINT: ${OBI_OTLP_ENDPOINT:-http://collector:4318}
       OTEL_EXPORTER_OTLP_PROTOCOL: ${OBI_OTLP_PROTOCOL:-http/protobuf}
       # Env vars override otel/obi/config.yaml, so these are the live knobs.
       OTEL_EBPF_LOG_LEVEL: ${OBI_LOG_LEVEL:-INFO}
@@ -94,7 +94,7 @@ services:
     networks:
       - otel
     depends_on:
-      - otelcol
+      - collector
     logging: *otel-logging
 
 networks:
