@@ -1,0 +1,72 @@
+# OpenTelemetry eBPF Instrumentation (OBI) — ollama-serve
+#
+# Structure lives here; the tunable knobs live in .env and reach OBI as
+# OTEL_EBPF_* / OTEL_EXPORTER_OTLP_* environment variables, which take
+# precedence over anything set in this file.
+#
+# Reference: https://opentelemetry.io/docs/zero-code/obi/configure/options/
+
+# Where telemetry goes. OBI refuses to start unless at least one exporter is
+# defined, so these stay in the file rather than living only in compose env —
+# it keeps the config valid on its own and makes the destination readable here.
+# OTEL_EXPORTER_OTLP_ENDPOINT from .env overrides both at runtime.
+otel_traces_export:
+  endpoint: http://otelcol:4318
+otel_metrics_export:
+  endpoint: http://otelcol:4318
+
+# OBI runs with `pid: host`, so it can see every process on the box. These
+# selectors are the only thing keeping it scoped to this stack: each one
+# matches a listening port *and* requires the process to be containerised, so
+# host daemons and unrelated containers are never instrumented.
+discovery:
+  instrument:
+    # Ollama inference instances (Go). Each listens on 11434 inside its own
+    # network namespace, so one selector covers the whole pool; individual
+    # instances are told apart by the service.instance.id attribute.
+    - name: ollama
+      namespace: ollama-serve
+      open_ports: 11434
+      containers_only: true
+
+    # nginx, the TLS front door: 11435 (Ollama API) and 11436 (Open WebUI).
+    # It runs with network_mode: host, so these are host ports.
+    - name: nginx
+      namespace: ollama-serve
+      open_ports: 11435,11436
+      containers_only: true
+
+    # Open WebUI (Python/uvicorn), reachable only via socat + nginx.
+    - name: open-webui
+      namespace: ollama-serve
+      open_ports: 8080
+      containers_only: true
+
+  # socat only shuttles bytes between a unix socket and TCP. It listens on unix
+  # sockets rather than TCP ports so it is not matched above, but exclude it
+  # explicitly so a future TCP-LISTEN socat can't double-count requests that
+  # are already recorded on both nginx and ollama.
+  exclude_instrument:
+    - exe_path: "*/socat"
+
+# Collapse request paths into low-cardinality route names. Anything not listed
+# falls back to the heuristic matcher, which is what stops Open WebUI's
+# /api/v1/chats/<uuid> style paths from exploding metric cardinality.
+routes:
+  unmatched: heuristic
+  patterns:
+    # Ollama native API
+    - /api/chat
+    - /api/generate
+    - /api/embed
+    - /api/embeddings
+    - /api/tags
+    - /api/show
+    - /api/ps
+    - /api/pull
+    - /api/version
+    # OpenAI-compatible API (what opencode.json and most clients target)
+    - /v1/chat/completions
+    - /v1/completions
+    - /v1/embeddings
+    - /v1/models
